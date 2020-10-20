@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: example-volume
+spec:
+  storageClassName: ""
+  claimRef: 
+    namespace: default
+    name: cirros-dv
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 2Gi
+  hostPath:
+    path: /data/example-volume/
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: example-volume-scratch
+spec:
+  storageClassName: ""
+  claimRef: 
+    namespace: default
+    name: cirros-dv-scratch
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 2Gi
+  hostPath:
+    path: /data/example-volume-scratch/

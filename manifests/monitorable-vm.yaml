@@ -1,0 +1,43 @@
+apiVersion: kubevirt.io/v1alpha3
+kind: VirtualMachine
+metadata:
+  name: monitorable-vm
+  labels:
+    name: monitorable-vm
+spec:
+  running: true
+  template:
+    metadata: 
+      name: monitorable-vm
+      labels: 
+        prometheus.kubevirt.io: "node-exporter"
+    spec:
+      domain:
+        resources:
+          requests:
+            memory: 1024Mi
+        devices:
+          disks:
+          - disk:
+              bus: virtio
+            name: my-data-volume
+        machine:
+          type: ""
+      volumes:
+      - dataVolume:
+          name: cirros-dv
+        name: my-data-volume
+  dataVolumeTemplates: 
+  - metadata:
+      name: "cirros-dv"
+    spec:
+      source:
+          http: 
+             url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img"
+      pvc:
+        storageClassName: ""
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: "2Gi"
