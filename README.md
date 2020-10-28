@@ -12,7 +12,7 @@ This set of tools will be used on this guide:
 
 ## Deploy Prometheus Operator
 
-Once you have your k8s cluster, with minikube or any other provider, the first step will be to deploy the Prometheus Operator. The reason is because the KubeVirt CR, when installed on the cluster, will detect if the ServiceMonitor CR already exists. If it does, then it will create ServiceMonitors configured to monitor all the KubeVirt components (virt-controller, virt-api and virt-handler) out-of-the-box.
+Once you have your k8s cluster, with minikube or any other provider, the first step will be to deploy the Prometheus Operator. The reason is that the KubeVirt CR, when installed on the cluster, will detect if the ServiceMonitor CR already exists. If it does, then it will create ServiceMonitors configured to monitor all the KubeVirt components (virt-controller, virt-api, and virt-handler) out-of-the-box.
 
 Although monitoring KubeVirt itself is not covered in this guide, it is a good practice to always deploy the Prometheus Operator before deploying KubeVirt :slightly_smiling_face: 
 
@@ -24,7 +24,7 @@ Then deploy the operator in the new namespace:
 ```
 helm fetch stable/prometheus-operator
 tar xzf prometheus-operator*.tgz
-cd prometheus-operator/ && helm install -n monitoring -f values.yaml monitoring stable/prometheus-operator
+cd prometheus-operator/ && helm install -n monitoring -f values.yaml kubevirt-prometheus stable/prometheus-operator
 ```
 After everything is deployed, you can delete everything that was downloaded by helm:
 ```
@@ -32,13 +32,13 @@ cd ..
 rm -rf prometheus-operator*
 ```
 
-One thing to keep in mind is the release name we added here: `monitoring`. This will be used when [configuring Prometheus to scrape the VM's node-exporter](#Configuring-Prometheus-to-scrape-the-VM's-node-exporter)
+One thing to keep in mind is the release name we added here: `kubevirt-prometheus`. This will be used when [configuring Prometheus to scrape the VM's node-exporter](#Configuring-Prometheus-to-scrape-the-VM's-node-exporter)
 
-## Deploy KubeVirt Operator and KubeVirt CustomResource
+## Deploy KubeVirt Operators and KubeVirt CustomResources
 
-Alright, the next step will be deploying KubeVirt itself. We will start with it's operator.
+Alright, the next step will be deploying KubeVirt itself. We will start with its operator.
 
-We will fetch the lastest version, then use `kubectl apply` to deploy the manifest directly from Github:
+We will fetch the lastest version, then use `kubectl create` to deploy the manifest directly from Github:
 ```
 export KUBEVIRT_VERSION=$(curl -s https://api.github.com/repos/kubevirt/kubevirt/releases | grep tag_name | grep -v -- - | sort -V | tail -1 | awk -F':' '{print $2}' | sed 's/,//' | xargs)
 kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-operator.yaml
@@ -49,7 +49,7 @@ Before deploying the KubeVirt CR, make sure that all kubevirt-operator replicas 
 kubectl rollout status -n kubevirt deployment virt-operator
 ```
 
-After that, we can deploy KubeVirt and wait for all it's components to get ready in a similar manner:
+After that, we can deploy KubeVirt and wait for all its components to get ready in a similar manner:
 ```
 kubectl create -f https://github.com/kubevirt/kubevirt/releases/download/${KUBEVIRT_VERSION}/kubevirt-cr.yaml
 kubectl rollout status -n kubevirt deployment virt-api
@@ -57,7 +57,7 @@ kubectl rollout status -n kubevirt deployment virt-controller
 kubectl rollout status -n kubevirt daemonset virt-handler
 ```
 
-If we want to monitor VMs that can restart, we need to setup persistent storage for them. [CDI](https://github.com/kubevirt/containerized-data-importer) will be the component responsible for that, so we will deploy it's operator and custom resource as well. As always, waiting for the right components to get ready before proceding:
+If we want to monitor VMs that can restart, we want our node-exporter to be persisted and, thus, we need to set up persistent storage for them. [CDI](https://github.com/kubevirt/containerized-data-importer) will be the component responsible for that, so we will deploy its operator and custom resource as well. As always, waiting for the right components to get ready before proceeding:
 
 ```
 export CDI_VERSION=$(curl -s https://github.com/kubevirt/containerized-data-importer/releases/latest | grep -o "v[0-9]\.[0-9]*\.[0-9]*")
@@ -75,7 +75,7 @@ kubectl rollout status -n cdi deployment cdi-deployment
 
 Alright, cool. We have everything we need now. Let's setup the VM.
 
-We will start with the PersistenVolumes required by CDI's DataVolume resources. Since I'm using minikube with no dynamic storage provider, I'll be creating 2 PV with a reference to the PVCs that will claim them.
+We will start with the PersistenVolumes required by [CDI's DataVolume](https://github.com/kubevirt/containerized-data-importer/blob/master/doc/datavolumes.md) resources. Since I'm using minikube with no dynamic storage provider, I'll be creating 2 PV with a reference to the PVCs that will claim them. Notice `claimRef` in each of the PVs.
 
 ```
 apiVersion: v1
@@ -118,8 +118,6 @@ apiVersion: kubevirt.io/v1alpha3
 kind: VirtualMachine
 metadata:
   name: monitorable-vm
-  labels:
-    name: monitorable-vm
 spec:
   running: true
   template:
@@ -137,8 +135,6 @@ spec:
           - disk:
               bus: virtio
             name: my-data-volume
-        machine:
-          type: ""
       volumes:
       - dataVolume:
           name: cirros-dv
@@ -159,7 +155,7 @@ spec:
             storage: "2Gi"
 ```
 
-Notice that KubeVirt's VirtualMachine resource has a virtual machine template and a dataVolumeTemplate. On the virtual machine template, it is important noticing that we named our VM `monitorable-vm`, and we will use this name to connect to it's console with `virtctl` later on. The label we've added, `prometheus.kubevirt.io: "node-exporter"`, is also important, since we'll use it when [configuring Prometheus to scrape the VM's node-exporter](#Configuring-Prometheus-to-scrape-the-VM's-node-exporter)
+Notice that KubeVirt's VirtualMachine resource has a virtual machine template and a dataVolumeTemplate. On the virtual machine template, it is important noticing that we named our VM `monitorable-vm`, and we will use this name to connect to its console with `virtctl` later on. The label we've added, `prometheus.kubevirt.io: "node-exporter"`, is also important, since we'll use it when [configuring Prometheus to scrape the VM's node-exporter](#Configuring-Prometheus-to-scrape-the-VM's-node-exporter)
 
 On dataVolumeTemplate, it is important noticing that we named the pvc `cirros-dv` and the DataVolume resource will create 2 pvcs with that, `cirros-dv` and `cirros-dv-scratch`. Notice that `cirros-dv` and `cirros-dv-scratch` are the names referenced on our PersistentVolume manifests. The names must match for this to work. 
 
@@ -259,14 +255,15 @@ spec:
 ```
 Since our ServiceMonitor will be deployed at the `monitoring` namespace, but our service is at the `default` namespace, we need `namespaceSelector.any=true`.
 
-We are also telling our ServiceMonitor that Prometheus needs to scrape endpoints from services labels `prometheus.kubevirt.io: "node-exporter"` and which ports are named `metrics`. Luckly, that's exactly what we did with our `Service` :slightly_smiling_face: 
+We are also telling our ServiceMonitor that Prometheus needs to scrape endpoints from services labels `prometheus.kubevirt.io: "node-exporter"` and which ports are named `metrics`. Luckily, that's exactly what we did with our `Service` :slightly_smiling_face: 
 
 One last thing to keep an eye on. Prometheus configuration can be set up to watch multiple ServiceMonitors. We can see which ServiceMonitors our Prometheus is watching with the following command: 
 ```
-kubectl describe -n monitoring prometheuses.monitoring.coreos.com monitoring-prometheus-oper-prometheus | grep -A 4 "Service Monitor Selector"
+# Look for Service Monitor Selector
+kubectl describe -n monitoring prometheuses.monitoring.coreos.com monitoring-prometheus-oper-prometheus
 ```
 
-Make sure our ServiceMonitor is has all labels required by Prometheus' `Service Monitor Selector`
+Make sure our ServiceMonitor has all labels required by Prometheus' `Service Monitor Selector`. One common selector is the release name that we've set when deploying our Prometheus with helm!
 
 ## Testing
 
@@ -294,12 +291,12 @@ With this behavior, alerts like the one below won't work.
 **BUT** if the VM is constantly crashing without being stopped, the pod won't be killed and you can set up an alert like this.
 ```
 - alert: KubeVirtVMCrashing
-    expr: up{pod=~"virt-launcher.*"} == 0 or changes(up{pod=~"virt-launcher.*"}[5m]) > 0
+    expr: up{pod=~"virt-launcher.*"} == 0
     for: 5m
     labels:
       severity: critical
     annotations:
-      summary: KubeVirt VM {{ $labels.pod }} is constantly crashing before node-exporter starts at boot or has crashed at least once in the last 5 minutes.
+      summary: KubeVirt VM {{ $labels.pod }} is constantly crashing before node-exporter starts at boot.
 ```
 
 ## Hacking
