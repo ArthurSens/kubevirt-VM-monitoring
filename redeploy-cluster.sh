@@ -1,4 +1,4 @@
-echo "deleteing pre-existing cluster"
+echo "deleting pre-existing cluster"
 minikube delete -p kubevirt
 
 echo "Configuring KubeVirt cluster"

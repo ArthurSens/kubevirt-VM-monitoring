@@ -57,7 +57,7 @@ echo "All CDI Operator replicas are ready! Continuing..."
 # Now we will install the CDI Custom Resource, which will install other components
 # cdi-apiserver, cdi-uploadproxy and cdi-deployment
 kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$CDI_VERSION/cdi-cr.yaml
-sleep 10
+sleep 30
 kubectl rollout status -n cdi deployment cdi-apiserver
 kubectl rollout status -n cdi deployment cdi-uploadproxy
 kubectl rollout status -n cdi deployment cdi-deployment
